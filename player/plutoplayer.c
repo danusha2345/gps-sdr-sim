@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
     struct stream_cfg txcfg;
     FILE *fp = NULL;
     const char *uri = NULL;
-    const char *ip = NULL;
+    const char *ip2 = NULL;
     
     // TX stream default config
     txcfg.bw_hz = MHZ(3.0); // 3.0 MHz RF bandwidth
@@ -111,7 +111,7 @@ int main(int argc, char** argv) {
                 uri = optarg;
                 break;
             case 'n':
-                ip = optarg;
+                ip2 = optarg;
                 break;
             case 'f':
                 txcfg.lo_hz = GHZ(atof(optarg));
@@ -148,8 +148,8 @@ int main(int argc, char** argv) {
     printf("* Acquiring IIO context\n");
     //ctx = iio_create_default_context(); // This may create non-PlutoSDR IIO context.
     if (ctx == NULL) {
-        if(ip != NULL) {
-            ctx = iio_create_context(NULL,ip);
+        if(ip2 != NULL) {
+            ctx = iio_create_context(NULL,ip2);
         } else if (uri != NULL) {
             ctx = iio_create_context(NULL,uri);
         } else {
