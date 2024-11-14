@@ -9,7 +9,7 @@
 
 #define NOTUSED(V) ((void) V)
 #define MHZ(x) ((long long)(x*1000000.0 + .5))
-#define GHZ(x) ((long long)(x*1000000000.0 + .5))
+#define GHZ(y) ((long long)(y*1000000000.0 + .5))
 #define NUM_SAMPLES 2600000
 #define BUFFER_SIZE (NUM_SAMPLES * 2 * sizeof(int16_t))
 
