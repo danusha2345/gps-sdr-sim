@@ -15,9 +15,9 @@
 
 
 struct stream_cfg {
-    long long bw_hz; // Analog banwidth in Hz
-    long long fs_hz; // Baseband sample rate in Hz
-    long long lo_hz; // Local oscillator frequency in Hz
+    long long bw_hz; // Analog banwidth in Hz. Полоса пропускания.
+    long long fs_hz; // Baseband sample rate in Hz. Частота сэмплов.
+    long long lo_hz; // Local oscillator frequency in Hz. Несущая частота сигнала.
     const char* rfport; // Port name
     double gain_db; // Hardware gain
 };
@@ -25,8 +25,10 @@ struct stream_cfg {
 static void usage() {
     fprintf(stderr, "Usage: plutoplayer [options]\n"
         "  -t <filename>      Transmit data from file (required)\n"
+        "  -f <carrier frequency>      Carrier frequency [GHz] (required)\n"
         "  -a <attenuation>   Set TX attenuation [dB] (default -20.0)\n"
         "  -b <bw>            Set RF bandwidth [MHz] (default 5.0)\n"
+        "  -s <fs>            Set Baseband sample rate [MHz] (default 2.6)\n"
         "  -u <uri>           ADALM-Pluto URI\n"
         "  -n <network>       ADALM-Pluto network IP or hostname (default pluto.local)\n");
     return;
@@ -70,14 +72,27 @@ int main(int argc, char** argv) {
     txcfg.rfport = "A";
     txcfg.gain_db = -20.0;
     
-    struct iio_context *ctx = NULL;
-    struct iio_device *tx = NULL;
-    struct iio_device *phydev = NULL;    
-    struct iio_channel *tx0_i = NULL;
-    struct iio_channel *tx0_q = NULL;
-    struct iio_buffer *tx_buffer = NULL;    
+//    struct iio_context *ctx = NULL;
+//    struct iio_device *tx = NULL;
+//   struct iio_device *phydev = NULL;    
+//    struct iio_channel *tx0_i = NULL;
+//    struct iio_channel *tx0_q = NULL;
+//    struct iio_buffer *tx_buffer = NULL; 
+                                                        
+    static struct iio_context *ctx   = NULL;
+    static struct iio_channel *rx0_i = NULL;
+    static struct iio_channel *rx0_q = NULL;
+    static struct iio_channel *tx0_i = NULL;
+    static struct iio_channel *tx0_q = NULL;
+    static struct iio_buffer  *rxbuf = NULL;
+    static struct iio_buffer  *txbuf = NULL;
+    static struct iio_stream  *rxstream = NULL;
+    static struct iio_stream  *txstream = NULL;
+    static struct iio_channels_mask *rxmask = NULL;
+    static struct iio_channels_mask *txmask = NULL;
     
-    while ((opt = getopt(argc, argv, "t:a:b:n:u:")) != EOF) {
+    // здесь введённые данные с консоли записываются в нужные переменные
+    while ((opt = getopt(argc, argv, "f:s:t:a:b:n:u:")) != EOF) {
         switch (opt) {
             case 't':
                 path = optarg;
@@ -97,6 +112,12 @@ int main(int argc, char** argv) {
                 break;
             case 'n':
                 ip = optarg;
+                break;
+            case 'f':
+                txcfg.lo_hz = GHZ(optarg);
+                break;
+            case 's':
+                txcfg.fs_hz = MHZ(optarg);
                 break;
             default:
                 printf("Unknown argument '-%c %s'\n", opt, optarg);
@@ -128,11 +149,11 @@ int main(int argc, char** argv) {
     //ctx = iio_create_default_context(); // This may create non-PlutoSDR IIO context.
     if (ctx == NULL) {
         if(ip != NULL) {
-            ctx = iio_create_network_context(ip);
+            ctx = iio_create_context(NULL,ip);
         } else if (uri != NULL) {
-            ctx = iio_create_context_from_uri(uri);
+            ctx = iio_create_context(NULL,uri);
         } else {
-            ctx = iio_create_network_context("pluto.local");
+            ctx = iio_create_context(NULL,"pluto.local");
         }
     }
    
@@ -185,7 +206,7 @@ int main(int argc, char** argv) {
     
     iio_channel_attr_write_longlong(
         iio_device_find_channel(phydev, "altvoltage1", true)
-        , "frequency", txcfg.lo_hz); // Set TX LO frequency
+        , "frequency", txcfg.lo_hz); // Set TX LO frequency               установка несущей частоты
     
     printf("* Initializing streaming channels\n");
     tx0_i = iio_device_find_channel(tx, "voltage0", true);
@@ -200,7 +221,7 @@ int main(int argc, char** argv) {
     iio_channel_enable(tx0_i);
     iio_channel_enable(tx0_q);    
     
-    ad9361_set_bb_rate(iio_context_find_device(ctx, "ad9361-phy"), txcfg.fs_hz);
+    ad9361_set_bb_rate(iio_context_find_device(ctx, "ad9361-phy"), txcfg.fs_hz); // установка частоты сэмплов
     
     printf("* Creating TX buffer\n");
 
