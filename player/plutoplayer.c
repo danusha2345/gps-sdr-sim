@@ -114,10 +114,10 @@ int main(int argc, char** argv) {
                 ip = optarg;
                 break;
             case 'f':
-                txcfg.lo_hz = GHZ(optarg);
+                txcfg.lo_hz = GHZ(atof(optarg));
                 break;
             case 's':
-                txcfg.fs_hz = MHZ(optarg);
+                txcfg.fs_hz = MHZ(atof(optarg));
                 break;
             default:
                 printf("Unknown argument '-%c %s'\n", opt, optarg);
