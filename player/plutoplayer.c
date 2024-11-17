@@ -9,15 +9,15 @@
 
 #define NOTUSED(V) ((void) V)
 #define MHZ(x) ((long long)(x*1000000.0 + .5))
-#define GHZ(y) ((long long)(y*1000000000.0 + .5))
+#define GHZ(x) ((long long)(x*1000000000.0 + .5))
 #define NUM_SAMPLES 2600000
 #define BUFFER_SIZE (NUM_SAMPLES * 2 * sizeof(int16_t))
 
 
 struct stream_cfg {
-    long long bw_hz; // Analog banwidth in Hz. Полоса пропускания.
-    long long fs_hz; // Baseband sample rate in Hz. Частота сэмплов.
-    long long lo_hz; // Local oscillator frequency in Hz. Несущая частота сигнала.
+    long long bw_hz; // Analog banwidth in Hz
+    long long fs_hz; // Baseband sample rate in Hz
+    long long lo_hz; // Local oscillator frequency in Hz
     const char* rfport; // Port name
     double gain_db; // Hardware gain
 };
@@ -25,10 +25,8 @@ struct stream_cfg {
 static void usage() {
     fprintf(stderr, "Usage: plutoplayer [options]\n"
         "  -t <filename>      Transmit data from file (required)\n"
-        "  -f <carrier frequency>      Carrier frequency [GHz] (required)\n"
         "  -a <attenuation>   Set TX attenuation [dB] (default -20.0)\n"
         "  -b <bw>            Set RF bandwidth [MHz] (default 5.0)\n"
-        "  -s <fs>            Set Baseband sample rate [MHz] (default 2.6)\n"
         "  -u <uri>           ADALM-Pluto URI\n"
         "  -n <network>       ADALM-Pluto network IP or hostname (default pluto.local)\n");
     return;
@@ -57,42 +55,29 @@ static char* readable_fs(double size, char *buf, size_t buf_size) {
  * 
  */
 int main(int argc, char** argv) {
-    char buf[1024];
+    char buf[1024];       //массив из 1024 символов размером по 1 байту
     int opt;
-    const char* path = NULL;
+    const char* path = NULL;    //адрес указатель на путь
     struct stream_cfg txcfg;
     FILE *fp = NULL;
     const char *uri = NULL;
-    const char *ip2 = NULL;
+    const char *ip = NULL;
     
     // TX stream default config
     txcfg.bw_hz = MHZ(3.0); // 3.0 MHz RF bandwidth
     txcfg.fs_hz = MHZ(2.6); // 2.6 MS/s TX sample rate
     txcfg.lo_hz = GHZ(1.575420); // 1.57542 GHz RF frequency
     txcfg.rfport = "A";
-    txcfg.gain_db = -20.0;
+    txcfg.gain_db = 0.0;
     
-//    struct iio_context *ctx = NULL;
-//    struct iio_device *tx = NULL;
-//   struct iio_device *phydev = NULL;    
-//    struct iio_channel *tx0_i = NULL;
-//    struct iio_channel *tx0_q = NULL;
-//    struct iio_buffer *tx_buffer = NULL; 
-                                                        
-    static struct iio_context *ctx   = NULL;
-    static struct iio_channel *rx0_i = NULL;
-    static struct iio_channel *rx0_q = NULL;
-    static struct iio_channel *tx0_i = NULL;
-    static struct iio_channel *tx0_q = NULL;
-    static struct iio_buffer  *rxbuf = NULL;
-    static struct iio_buffer  *txbuf = NULL;
-    static struct iio_stream  *rxstream = NULL;
-    static struct iio_stream  *txstream = NULL;
-    static struct iio_channels_mask *rxmask = NULL;
-    static struct iio_channels_mask *txmask = NULL;
+    struct iio_context *ctx = NULL;
+    struct iio_device *tx = NULL;
+    struct iio_device *phydev = NULL;    
+    struct iio_channel *tx0_i = NULL;
+    struct iio_channel *tx0_q = NULL;
+    struct iio_buffer *tx_buffer = NULL;    
     
-    // здесь введённые данные с консоли записываются в нужные переменные
-    while ((opt = getopt(argc, argv, "f:s:t:a:b:n:u:")) != EOF) {
+    while ((opt = getopt(argc, argv, "t:a:b:n:u:")) != EOF) {
         switch (opt) {
             case 't':
                 path = optarg;
@@ -111,13 +96,7 @@ int main(int argc, char** argv) {
                 uri = optarg;
                 break;
             case 'n':
-                ip2 = optarg;
-                break;
-            case 'f':
-                txcfg.lo_hz = GHZ(atof(optarg));
-                break;
-            case 's':
-                txcfg.fs_hz = MHZ(atof(optarg));
+                ip = optarg;
                 break;
             default:
                 printf("Unknown argument '-%c %s'\n", opt, optarg);
@@ -148,12 +127,12 @@ int main(int argc, char** argv) {
     printf("* Acquiring IIO context\n");
     //ctx = iio_create_default_context(); // This may create non-PlutoSDR IIO context.
     if (ctx == NULL) {
-        if(ip2 != NULL) {
-            ctx = iio_create_context(NULL,ip2);
+        if(ip != NULL) {
+            ctx = iio_create_network_context(ip);
         } else if (uri != NULL) {
-            ctx = iio_create_context(NULL,uri);
+            ctx = iio_create_context_from_uri(uri);
         } else {
-            ctx = iio_create_context(NULL,"pluto.local");
+            ctx = iio_create_network_context("pluto.local");
         }
     }
    
@@ -191,7 +170,7 @@ int main(int argc, char** argv) {
         goto error_exit;
     }    
 
-    iio_device_set_kernel_buffers_count(tx, 8);
+    iio_device_set_kernel_buffers_count(tx, 8);    //устанавливаем количество буферов ядра
     
     phydev = iio_context_find_device(ctx, "ad9361-phy");
     struct iio_channel* phy_chn = iio_device_find_channel(phydev, "voltage0", true);
@@ -206,7 +185,7 @@ int main(int argc, char** argv) {
     
     iio_channel_attr_write_longlong(
         iio_device_find_channel(phydev, "altvoltage1", true)
-        , "frequency", txcfg.lo_hz); // Set TX LO frequency               установка несущей частоты
+        , "frequency", txcfg.lo_hz); // Set TX LO frequency
     
     printf("* Initializing streaming channels\n");
     tx0_i = iio_device_find_channel(tx, "voltage0", true);
@@ -221,11 +200,11 @@ int main(int argc, char** argv) {
     iio_channel_enable(tx0_i);
     iio_channel_enable(tx0_q);    
     
-    ad9361_set_bb_rate(iio_context_find_device(ctx, "ad9361-phy"), txcfg.fs_hz); // установка частоты сэмплов
+    ad9361_set_bb_rate(iio_context_find_device(ctx, "ad9361-phy"), txcfg.fs_hz);
     
     printf("* Creating TX buffer\n");
 
-    tx_buffer = iio_device_create_buffer(tx, NUM_SAMPLES, false);
+    tx_buffer = iio_device_create_buffer(tx, NUM_SAMPLES, false);  //создаём буфер в сэмплах
     if (!tx_buffer) {
         fprintf(stderr, "Could not create TX buffer.\n");
         goto error_exit;
@@ -236,14 +215,19 @@ int main(int argc, char** argv) {
         , "powerdown", false); // Turn ON TX LO
 
     int32_t ntx = 0;
-    short *ptx_buffer = (short *)iio_buffer_start(tx_buffer);
-
+    short *ptx_buffer = (short *)iio_buffer_start(tx_buffer);    //указатель или адрес на начало буфера
+	short *p_end =  (short *)iio_buffer_end(tx_buffer);          //указатель на конец буфера
+	short *p_dat;
+	
     printf("* Transmit starts...\n");    
     // Keep writing samples while there is more data to send and no failures have occurred.
+	
     while (!feof(fp) && !stop) {
-        fread(ptx_buffer, sizeof(short), BUFFER_SIZE / sizeof(short),fp);
-        // Schedule TX buffer
-        ntx = iio_buffer_push(tx_buffer);
+        for (p_dat = ptx_buffer; p_dat < p_end; p_dat += 1) {
+			fread(p_dat, sizeof(short), 1,fp);  //  загружаем 2 байта(16бит) 
+			*p_dat = *p_dat << 4;               //  сдвигаем содержимое на 4 бита
+		}
+        ntx = iio_buffer_push(tx_buffer);       //  выталкиваем буфер
         if (ntx < 0) {
             printf("Error pushing buf %d\n", (int) ntx);
             break;
@@ -263,4 +247,3 @@ error_exit:
     if (ctx) { iio_context_destroy(ctx); }
     return EXIT_SUCCESS;
 }
-
